@@ -1,0 +1,92 @@
+<html>
+    <head>
+		<style>
+			#temperature {
+				font-size: 500%;
+				font-weight: bold;
+			}
+		</style>
+    </head>
+    <body>
+
+        <p>
+			<span id="time"></span>
+			it's <span id="temperature">...</span> at AltSpace.
+		</p>
+
+        <script>
+			function celciusToFahrenheit(celcius) {
+				return celcius * 1.8 + 32
+			}
+
+			// from https://stackoverflow.com/a/847196
+			function dateFromUnixTime(unixTimestamp) {
+				// Create a new JavaScript Date object based on the timestamp
+				// multiplied by 1000 so that the argument is in milliseconds, not seconds.
+				const date = new Date(unixTimestamp * 1000);
+				// Hours part from the timestamp
+				const hours = date.getHours();
+				// Minutes part from the timestamp
+				const minutes = "0" + date.getMinutes();
+				// Seconds part from the timestamp
+				const seconds = "0" + date.getSeconds();
+
+				// Will display time in 10:30:23 format
+				const formattedTime = hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+				return formattedTime;
+			}
+
+            fetch('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/time_and_temp.log')
+                .then((response) => {
+                    console.log("got response");
+                    return response.text()
+                }).then((body) => {
+                    let samples = [];
+                    console.log(body);
+                    for (const line of body.split("\n")) {
+                        console.log(`line: ${line}`);
+						let sample = line.split(" ").map(parseFloat);
+						if (sample.length == 3) {
+                            samples.push(sample);
+						} else {
+							console.log(`skipping invalid sample: ${line} (last line?)`)
+						}
+                    }
+                    let latestSample = samples[samples.length - 1];
+                    console.log(samples);
+					console.log(`latest sample: ${latestSample}`);
+
+                    // time, temp, humidity
+					const timeUnix = latestSample[0];
+					const temperatureCelcius = latestSample[1];
+					const relativeHumidity = latestSample[2];
+
+					const fahrenheit = celciusToFahrenheit(latestSample[1]).toFixed(1);
+					const formattedTemperature = fahrenheit + "&deg;F";
+
+					let formattedTime = "";
+
+					let timeAgo = Math.floor(Date.now() / 1000 - timeUnix);
+					if (timeAgo < 60 * 10) {
+						formattedTime = `As of ${timeAgo} seconds ago, `
+					} else {
+						formattedTime = `As of ${dateFromUnixTime(timeUnix)},`
+					}
+
+                    document.getElementById("temperature").innerHTML = formattedTemperature;
+                    document.getElementById("time").innerText = formattedTime;
+
+                });
+        </script>
+        <noscript>
+        To avoid hosting an application server, this site instead uses client
+        side javascript to display the results.
+
+        If you are super-hardcore and do not like to use javascript, than I bet
+        you are also comfortable decoding the raw data, unix timestamps and all:
+        https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/time_and_temp.log
+
+        The format is &lt;unix time&gt; &lt;temp in decress celcius&gt; &lt;relative humidity as a percent (0-100)&gt;
+        </noscript>
+    </body>
+</html>
