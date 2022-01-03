@@ -70,8 +70,11 @@ def load_env_file(dotenv_path, override=False):
 
 
 if __name__ == '__main__':
-    load_env_file(".env")
+    import os.path
+
+    dir = os.path.dirname(os.path.realpath(__file__))
+    env_path = os.path.join(dir, ".env")
+
+    load_env_file(env_path)
     upload_public_file(file_path, bucket)
-
-
 
