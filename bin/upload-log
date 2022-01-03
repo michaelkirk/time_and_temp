@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+
+
+file_path = "/home/timeandtemp/logs/time_and_temp.log"
+bucket = "altspace-time-and-temp"
+
+
+import logging
+import boto3
+from botocore.exceptions import ClientError
+import os
+
+# failed attempt with tinys3
+# import tinys3
+# 
+# 
+# conn = tinys3.Connection(S3_ACCESS_KEY, S3_SECRET_KEY, tls=True)
+# 
+# f = open(file_path, 'rb')
+# conn.upload('time_and_temp.log', f, bucket)
+
+def upload_public_file(file_name, bucket, object_name=None):
+    """Upload a file to an S3 bucket
+
+    :param file_name: File to upload
+    :param bucket: Bucket to upload to
+    :param object_name: S3 object name. If not specified then file_name is used
+    :return: True if file was uploaded, else False
+    """
+
+    # If S3 object_name was not specified, use file_name
+    if object_name is None:
+        object_name = os.path.basename(file_name)
+
+    # Upload the file
+    session = boto3.Session(
+        aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+        aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+    )
+
+    print("bucket: {}, file_name: {}, object: {}".format(bucket, file_name, object_name))
+    s3 = session.resource('s3')
+    try:
+        response = s3.Bucket(bucket).upload_file(file_name, object_name, ExtraArgs={'ACL':'public-read'})
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+
+
+def load_env_file(dotenv_path, override=False):
+    with open(dotenv_path) as file_obj:
+        lines = file_obj.read().splitlines()  # Removes \n from lines
+
+    dotenv_vars = {}
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", maxsplit=1)
+        dotenv_vars.setdefault(key, value)
+
+    if override:
+        os.environ.update(dotenv_vars)
+    else:
+        for key, value in dotenv_vars.items():
+            os.environ.setdefault(key, value)
+
+
+if __name__ == '__main__':
+    load_env_file(".env")
+    upload_public_file(file_path, bucket)
+
+
+
