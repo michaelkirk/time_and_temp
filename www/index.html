@@ -5,13 +5,19 @@
                 font-size: 500%;
                 font-weight: bold;
             }
+
+            #humidity {
+                font-size: 500%;
+                font-weight: bold;
+            }
         </style>
     </head>
     <body>
 
         <p>
-            <span id="time"></span>
-            it's <span id="temperature">...</span> at AltSpace.
+            As of <span id="time">...</span>,
+            it's <span id="temperature">...</span>
+            with <span id="humidity">...</span> humidity.
         </p>
 
         <script>
@@ -68,13 +74,22 @@
 
                     let timeAgo = Math.floor(Date.now() / 1000 - timeUnix);
                     if (timeAgo < 60 * 10) {
-                        formattedTime = `As of ${timeAgo} seconds ago, `
+                        formattedTime = `${timeAgo} seconds ago`;
+                    } else if (timeAgo <= 60 * 60 * 24) {
+                        formattedTime = `${dateFromUnixTime(timeUnix)} today`;
+                    } else if (timeAgo <= 60 * 60 * 24 * 2) {
+                        formattedTime = `${dateFromUnixTime(timeUnix)} yesterday`;
                     } else {
-                        formattedTime = `As of ${dateFromUnixTime(timeUnix)},`
+                        let dateString = (new Date()).toDateString();
+                        formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
                     }
+
+
+                    let formattedHumidity = `${relativeHumidity.toFixed(1)}%`
 
                     document.getElementById("temperature").innerHTML = formattedTemperature;
                     document.getElementById("time").innerText = formattedTime;
+                    document.getElementById("humidity").innerText = formattedHumidity;
 
                 });
         </script>
