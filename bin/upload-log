@@ -9,6 +9,7 @@ import logging
 import boto3
 from botocore.exceptions import ClientError
 import os
+import io
 
 # failed attempt with tinys3
 # import tinys3
@@ -41,12 +42,40 @@ def upload_public_file(file_name, bucket, object_name=None):
     print("bucket: {}, file_name: {}, object: {}".format(bucket, file_name, object_name))
     s3 = session.resource('s3')
     try:
-        response = s3.Bucket(bucket).upload_file(file_name, object_name, ExtraArgs={'ACL':'public-read', 'ContentEncoding': 'gzip'})
+        metadata = {'ACL':'public-read', 'ContentEncoding': 'gzip'}
+        response = s3.Bucket(bucket).upload_file(file_name, object_name, ExtraArgs=metadata)
     except ClientError as e:
         logging.error(e)
         return False
     return True
 
+def upload_last_line_to_public_file(file_name, bucket, object_name):
+    # Upload the file
+    session = boto3.Session(
+        aws_access_key_id=os.environ['S3_ACCESS_KEY'],
+        aws_secret_access_key=os.environ['S3_SECRET_KEY'],
+    )
+
+    with open(file_name, 'rb') as f:
+        try:  # catch OSError in case of a one line file
+            f.seek(-2, os.SEEK_END)
+            while f.read(1) != b'\n':
+                f.seek(-2, os.SEEK_CUR)
+        except OSError:
+            f.seek(0)
+        last_line = f.readline().decode()
+
+    print("bucket: {}, file_name: {}, object: {}, last_line: {}".format(bucket, file_name, object_name, last_line))
+
+    s3 = session.resource('s3')
+    try:
+        content = io.BytesIO(last_line.encode("utf-8"))
+        metadata = ExtraArgs={'ACL':'public-read'}
+        response = s3.Bucket(bucket).upload_fileobj(content, object_name, ExtraArgs=metadata)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
 
 
 def load_env_file(dotenv_path, override=False):
@@ -81,6 +110,11 @@ if __name__ == '__main__':
     env_path = os.path.join(dir, ".env")
 
     load_env_file(env_path)
+
+    most_recent_name = "most_recent_" + os.path.basename(file_path)
+    upload_last_line_to_public_file(file_path, bucket, most_recent_name)
+
     compressed_file_path = compress_file(file_path)
     upload_public_file(compressed_file_path, bucket, os.path.basename(file_path))
+
 
