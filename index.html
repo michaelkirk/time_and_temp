@@ -78,7 +78,7 @@
                 return formattedTime;
             }
 
-            fetch('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/time_and_temp.log')
+            fetch('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/most_recent_time_and_temp.log')
                 .then((response) => {
                     // console.log("got response");
                     return response.text()
