@@ -1,24 +1,60 @@
 <html>
     <head>
         <style>
+            .stats {
+                text-align: center;
+                position: relative;
+                font-size: 200%;
+                margin: 32px 32px 100px 32px;
+            }
+
             #temperature {
-                font-size: 500%;
+                font-size: 300%;
                 font-weight: bold;
             }
 
             #humidity {
-                font-size: 500%;
+                font-size: 300%;
                 font-weight: bold;
+            }
+
+            @media only screen and (max-width: 600px) {
+                #temperature {
+                    font-size: 150%;
+                    font-weight: bold;
+                }
+
+                #humidity {
+                    font-size: 150%;
+                    font-weight: bold;
+                }
+            }
+
+            body {
+                background: url("assets/images/wall.jpg") no-repeat center center fixed;
+                background-size: cover;
+                background-color: rgb(211, 198, 182);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .loading {
+                animation: 1.0s ease-in-out infinite alternate fadein;
+            }
+            @keyframes fadein {
+                from { opacity: 1 }
+                to   { opacity: 0.1 }
             }
         </style>
     </head>
     <body>
 
-        <p>
-            As of <span id="time">...</span>,
-            it's <span id="temperature">...</span>
-            with <span id="humidity">...</span> humidity.
-        </p>
+        <div class="stats">
+            As of <span class="loading" id="time">...</span>,
+            it's <span class="loading" id="temperature">...</span>
+            with <span class="loading" id="humidity">...</span> humidity.
+        </div>
 
         <script>
             function celciusToFahrenheit(celcius) {
@@ -84,13 +120,16 @@
                         formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
                     }
 
-
                     let formattedHumidity = `${relativeHumidity.toFixed(1)}%`
 
-                    document.getElementById("temperature").innerHTML = formattedTemperature;
-                    document.getElementById("time").innerText = formattedTime;
-                    document.getElementById("humidity").innerText = formattedHumidity;
-
+                    let loadElement = (id, formattedText) => {
+                        let element = document.getElementById(id);
+                        element.innerHTML = formattedText;
+                        element.classList.remove("loading");
+                    };
+                    loadElement("temperature", formattedTemperature);
+                    loadElement("time", formattedTime);
+                    loadElement("humidity", formattedHumidity);
                 });
         </script>
         <noscript>
