@@ -41,7 +41,7 @@ def upload_public_file(file_name, bucket, object_name=None):
     print("bucket: {}, file_name: {}, object: {}".format(bucket, file_name, object_name))
     s3 = session.resource('s3')
     try:
-        response = s3.Bucket(bucket).upload_file(file_name, object_name, ExtraArgs={'ACL':'public-read'})
+        response = s3.Bucket(bucket).upload_file(file_name, object_name, ExtraArgs={'ACL':'public-read', 'ContentEncoding': 'gzip'})
     except ClientError as e:
         logging.error(e)
         return False
@@ -68,6 +68,11 @@ def load_env_file(dotenv_path, override=False):
         for key, value in dotenv_vars.items():
             os.environ.setdefault(key, value)
 
+def compress_file(input_path):
+    import subprocess
+    process = subprocess.Popen(['gzip', '-k', '-f', '-9', input_path])
+    _stdout, _stderr = process.communicate()
+    return input_path + '.gz'
 
 if __name__ == '__main__':
     import os.path
@@ -76,5 +81,6 @@ if __name__ == '__main__':
     env_path = os.path.join(dir, ".env")
 
     load_env_file(env_path)
-    upload_public_file(file_path, bucket)
+    compressed_file_path = compress_file(file_path)
+    upload_public_file(compressed_file_path, bucket, os.path.basename(file_path))
 
