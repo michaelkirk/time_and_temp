@@ -116,7 +116,7 @@
                     } else if (timeAgo <= 60 * 60 * 24 * 2) {
                         formattedTime = `${dateFromUnixTime(timeUnix)} yesterday`;
                     } else {
-                        let dateString = (new Date()).toDateString();
+                        let dateString = (new Date(timeUnix * 1000)).toDateString();
                         formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
                     }
 
