@@ -1,11 +1,24 @@
 <html>
     <head>
         <style>
+            body {
+                background: url("assets/images/wall.jpg") no-repeat center center fixed;
+                background-size: cover;
+                background-color: rgb(211, 198, 182);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                flex-direction: column;
+            }
+
             .stats {
                 text-align: center;
-                position: relative;
                 font-size: 200%;
                 margin: 32px 32px 100px 32px;
+            }
+
+            .plot {
+                width: 100%;
             }
 
             #temperature {
@@ -30,21 +43,17 @@
                 }
             }
 
-            body {
-                background: url("assets/images/wall.jpg") no-repeat center center fixed;
-                background-size: cover;
-                background-color: rgb(211, 198, 182);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-
             .loading {
                 animation: 1.0s ease-in-out infinite alternate fadein;
             }
             @keyframes fadein {
                 from { opacity: 1 }
                 to   { opacity: 0.1 }
+            }
+
+            #plot-canvas {
+                width: 100%;
+                height: 200px;
             }
         </style>
     </head>
@@ -55,17 +64,21 @@
             it's <span class="loading" id="temperature">...</span>
             with <span class="loading" id="humidity">...</span> humidity.
         </div>
+        <div class="plot">
+            <canvas id="plot-canvas"></canvas>
+        </div>
 
-        <script>
+        <script type="module">
+
             function celciusToFahrenheit(celcius) {
                 return celcius * 1.8 + 32
             }
 
             // from https://stackoverflow.com/a/847196
-            function dateFromUnixTime(unixTimestamp) {
+            function dateFromUnixTime(timeUnixstamp) {
                 // Create a new JavaScript Date object based on the timestamp
                 // multiplied by 1000 so that the argument is in milliseconds, not seconds.
-                const date = new Date(unixTimestamp * 1000);
+                const date = new Date(timeUnixstamp * 1000);
                 // Hours part from the timestamp
                 const hours = date.getHours();
                 // Minutes part from the timestamp
@@ -78,59 +91,158 @@
                 return formattedTime;
             }
 
-            fetch('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/most_recent_time_and_temp.log')
-                .then((response) => {
-                    // console.log("got response");
-                    return response.text()
-                }).then((body) => {
-                    let samples = [];
-                    // console.log(body);
-                    for (const line of body.split("\n")) {
-                        // console.log(`line: ${line}`);
-                        let sample = line.split(" ").map(parseFloat);
-                        if (sample.length == 3) {
-                            samples.push(sample);
-                        } else {
-                            console.log(`skipping invalid sample: ${line} (last line?)`)
-                        }
-                    }
-                    let latestSample = samples[samples.length - 1];
-                    // console.log(samples);
-                    console.log(`latest sample: ${latestSample}`);
+            function Sample(data) {
+                this.timeUnix = data[0];
+                this.tempF = data[1];
+                this.relativeHumidity = data[2];
 
-                    // time, temp, humidity
-                    const timeUnix = latestSample[0];
-                    const temperatureCelcius = latestSample[1];
-                    const relativeHumidity = latestSample[2];
+                return this;
+            }
 
-                    const fahrenheit = celciusToFahrenheit(latestSample[1]).toFixed(1);
-                    const formattedTemperature = fahrenheit + "&deg;F";
+            Sample.prototype.formattedHumidity = function() {
+                return `${this.relativeHumidity.toFixed(1)}%`
+            }
 
-                    let formattedTime = "";
+            Sample.prototype.date = function() {
+                return new Date(this.timeUnix * 1000);
+            }
 
-                    let timeAgo = Math.floor(Date.now() / 1000 - timeUnix);
-                    if (timeAgo < 60 * 10) {
-                        formattedTime = `${timeAgo} seconds ago`;
-                    } else if (timeAgo <= 60 * 60 * 24) {
-                        formattedTime = `${dateFromUnixTime(timeUnix)} today`;
-                    } else if (timeAgo <= 60 * 60 * 24 * 2) {
-                        formattedTime = `${dateFromUnixTime(timeUnix)} yesterday`;
+            async function fetchSamples(url) {
+                let response = await fetch(url);
+                let body = await response.text();
+                let samples = [];
+                for (const line of body.split("\n")) {
+                    // console.log(`line: ${line}`);
+                    let sample = line.split(" ").map(parseFloat);
+                    if (sample.length == 3) {
+                        samples.push(new Sample(sample));
                     } else {
-                        let dateString = (new Date(timeUnix * 1000)).toDateString();
-                        formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
+                        console.log(`skipping invalid sample: ${line} (last line?)`)
+                    }
+                }
+                return samples;
+            }
+
+            async function showPlot() {
+                var samples = await fetchSamples('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/time_and_temp.log');
+                // console.log("plot samples", samples);
+
+                // just plot the latest samples
+                samples = samples.slice(-1000);
+
+                let firstSample = samples[0];
+                let latestSample = samples[samples.length - 1];
+
+                console.log('latest sample', latestSample);
+
+                let minX = Infinity;
+                let maxX = -Infinity;
+                let minY = Infinity;
+                let maxY = -Infinity;
+                for (const sample of samples) {
+                    if (sample.timeUnix < minX) {
+                        minX = sample.timeUnix;
+                    }
+                    if (sample.timeUnix > maxX) {
+                        maxX = sample.timeUnix;
+                    }
+                    if (sample.relativeHumidity < minY) {
+                        minY = sample.relativeHumidity;
+                    }
+                    if (sample.relativeHumidity > maxY) {
+                        maxY = sample.relativeHumidity;
+                    }
+                }
+                console.log(`x: ${minX}-${maxX}, y: ${minY}-${maxY}`);
+
+                const canvas = document.getElementById("plot-canvas");
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                const width = canvas.width;
+                const height = canvas.height;
+                function x(input) {
+                    return (input - minX) / (maxX-minX) * width;
+                }
+
+                let headerHeight = 20;
+                function y(input) {
+                    let plotHeight = height - headerHeight;
+                    return plotHeight - (input - minY) / (maxY-minY) * plotHeight;
+                }
+
+                const ctx = canvas.getContext("2d");
+                ctx.beginPath();
+                ctx.moveTo(x(firstSample.timeUnix), y(firstSample.relativeHumidity));
+                for (const sample of samples) {
+                    let xVal = x(sample.timeUnix);
+                    let yVal = y(sample.relativeHumidity);
+
+                    if (sample.relativeHumidity == minY) {
+                        console.log("min Y", sample.relativeHumidity);
+                        ctx.fillText(sample.formattedHumidity(), xVal, yVal - 10);
+                    } else if (sample.relativeHumidity == maxY) {
+                        console.log("max Y", sample.relativeHumidity);
+                        ctx.fillText(sample.formattedHumidity(), xVal, yVal + 20);
                     }
 
-                    let formattedHumidity = `${relativeHumidity.toFixed(1)}%`
+                    ctx.lineTo(xVal, yVal);
+                }
+                ctx.stroke();
 
-                    let loadElement = (id, formattedText) => {
-                        let element = document.getElementById(id);
-                        element.innerHTML = formattedText;
-                        element.classList.remove("loading");
-                    };
-                    loadElement("temperature", formattedTemperature);
-                    loadElement("time", formattedTime);
-                    loadElement("humidity", formattedHumidity);
-                });
+                const weekday = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+                let startDayMs = firstSample.date().setHours(0, 0, 0, 0);
+                let msPerDay = 24 * 60 * 60 * 1000;
+                let tomorrowMs = startDayMs + msPerDay;
+                console.log("start date", startDayMs);
+                console.log("original tomorrow", tomorrowMs);
+
+                while (tomorrowMs < latestSample.timeUnix * 1000) {
+                    let xVal = x(tomorrowMs / 1000);
+                    let yVal = height - headerHeight / 2;
+
+                    ctx.fillText(new Date(tomorrowMs).getDate(), xVal, yVal);
+
+                    tomorrowMs += msPerDay;
+                    console.log("new tomorrow", tomorrowMs);
+                }
+            }
+
+            async function showMostRecent() {
+                let samples = await fetchSamples('https://altspace-time-and-temp.s3.us-west-2.amazonaws.com/most_recent_time_and_temp.log');
+                let sample = samples[samples.length - 1];
+                // console.log(samples);
+                // console.log(`latest sample: ${latestSample}`);
+
+                const fahrenheit = celciusToFahrenheit(sample.tempF).toFixed(1);
+                const formattedTemperature = fahrenheit + "&deg;F";
+
+                let formattedTime = "";
+
+                let timeAgo = Math.floor(Date.now() / 1000 - sample.timeUnix);
+                if (timeAgo < 60 * 10) {
+                    formattedTime = `${timeAgo} seconds ago`;
+                } else if (timeAgo <= 60 * 60 * 24) {
+                    formattedTime = `${dateFromUnixTime(sample.timeUnix)} today`;
+                } else if (timeAgo <= 60 * 60 * 24 * 2) {
+                    formattedTime = `${dateFromUnixTime(sample.timeUnix)} yesterday`;
+                } else {
+                    let dateString = (new Date(sample.timeUnix * 1000)).toDateString();
+                    formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
+                }
+
+                let loadElement = (id, formattedText) => {
+                    let element = document.getElementById(id);
+                    element.innerHTML = formattedText;
+                    element.classList.remove("loading");
+                };
+                loadElement("temperature", formattedTemperature);
+                loadElement("time", formattedTime);
+                loadElement("humidity", sample.formattedHumidity());
+            }
+
+            showMostRecent();
+            showPlot();
         </script>
         <noscript>
         To avoid hosting an application server, this site instead uses client
