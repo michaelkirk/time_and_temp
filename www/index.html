@@ -231,7 +231,7 @@
                     formattedTime = `${dateFromUnixTime(sample.timeUnix)} yesterday`;
                 } else {
                     let dateString = (new Date(sample.timeUnix * 1000)).toDateString();
-                    formattedTime = `${dateString} ${dateFromUnixTime(timeUnix)}`;
+                    formattedTime = `${dateString} ${dateFromUnixTime(sample.timeUnix)}`;
                 }
 
                 let loadElement = (id, formattedText) => {
